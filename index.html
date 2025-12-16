@@ -36,7 +36,7 @@
         <div id="cameraTab" class="hidden space-y-3">
 
             <!-- Live camera with overlay -->
-            <div class="relative w-full aspect-video bg-black rounded overflow-hidden">
+            <div class="relative w-full aspect-square bg-black rounded overflow-hidden"></div>
                 <video id="video" autoplay playsinline class="absolute inset-0 w-full h-full object-cover"></video>
                 <img id="ghost" class="absolute inset-0 w-full h-full object-cover opacity-40 hidden">
             </div>
@@ -100,7 +100,8 @@
 
         /* ---------- Utilities ---------- */
         function resizeImage(img) {
-            const scale = Math.min(MAX_DIM / img.width, MAX_DIM / img.height, 1);
+            const scale = MAX_DIM / Math.max(img.width, img.height);
+
             const w = Math.round(img.width * scale);
             const h = Math.round(img.height * scale);
 
@@ -141,7 +142,7 @@
             tabUpload.classList.remove("bg-blue-600", "text-white");
 
             if (!video.srcObject) {
-                const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{exact: "environment"}}});
+                const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode:{exact: "environment"}}});
                 video.srcObject = stream;
             }
         };
