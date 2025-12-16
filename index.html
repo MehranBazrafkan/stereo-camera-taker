@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Stereo Vision Capture</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen p-3">
+    <div class="max-w-md mx-auto bg-white rounded-2xl shadow-lg p-4 space-y-4">
+
+        <h1 class="text-xl font-semibold text-center">Stereo Vision Builder</h1>
+
+        <!-- Tabs -->
+        <div class="flex rounded-lg overflow-hidden border">
+            <button id="tabUpload" class="flex-1 py-2 bg-blue-600 text-white">
+                Upload
+            </button>
+            <button id="tabCamera" class="flex-1 py-2 bg-gray-200">
+                Camera
+            </button>
+        </div>
+
+        <!-- UPLOAD TAB -->
+        <div id="uploadTab" class="space-y-3">
+            <input id="leftInput" type="file" accept="image/*" class="w-full">
+            <img id="leftPreview" class="hidden w-full rounded border">
+
+            <input id="rightInput" type="file" accept="image/*" class="w-full">
+            <img id="rightPreview" class="hidden w-full rounded border">
+        </div>
+
+        <!-- CAMERA TAB -->
+        <div id="cameraTab" class="hidden space-y-3">
+
+            <!-- Live camera with overlay -->
+            <div class="relative w-full aspect-video bg-black rounded overflow-hidden">
+                <video id="video" autoplay playsinline class="absolute inset-0 w-full h-full object-cover"></video>
+                <img id="ghost" class="absolute inset-0 w-full h-full object-cover opacity-40 hidden">
+            </div>
+
+            <button id="captureBtn" class="w-full bg-blue-600 text-white py-2 rounded-lg">
+                Capture Image
+            </button>
+
+            <!-- Captured previews -->
+            <div class="grid grid-cols-2 gap-2">
+                <img id="cap1" class="rounded border hidden">
+                <img id="cap2" class="rounded border hidden">
+            </div>
+        </div>
+
+        <button id="buildBtn" class="w-full bg-green-600 text-white py-2 rounded-lg">
+            Build Stereo Image
+        </button>
+
+        <img id="resultImg" class="hidden w-full rounded border">
+
+        <a id="downloadBtn" class="block w-full text-center bg-gray-400 text-white py-2 rounded-lg pointer-events-none">
+            Download
+        </a>
+
+        <canvas id="canvas" class="hidden"></canvas>
+    </div>
+
+    <script>
+        const MAX_DIM = 1024;
+
+        // Tabs
+        const tabUpload = document.getElementById("tabUpload");
+        const tabCamera = document.getElementById("tabCamera");
+        const uploadTab = document.getElementById("uploadTab");
+        const cameraTab = document.getElementById("cameraTab");
+
+        // Upload elements
+        const leftInput = document.getElementById("leftInput");
+        const rightInput = document.getElementById("rightInput");
+        const leftPreview = document.getElementById("leftPreview");
+        const rightPreview = document.getElementById("rightPreview");
+
+        // Camera elements
+        const video = document.getElementById("video");
+        const ghost = document.getElementById("ghost");
+        const captureBtn = document.getElementById("captureBtn");
+        const cap1 = document.getElementById("cap1");
+        const cap2 = document.getElementById("cap2");
+
+        // Output
+        const buildBtn = document.getElementById("buildBtn");
+        const resultImg = document.getElementById("resultImg");
+        const downloadBtn = document.getElementById("downloadBtn");
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+
+        let imgLeft = null;
+        let imgRight = null;
+        let captureCount = 0;
+
+        /* ---------- Utilities ---------- */
+        function resizeImage(img) {
+            const scale = Math.min(MAX_DIM / img.width, MAX_DIM / img.height, 1);
+            const w = Math.round(img.width * scale);
+            const h = Math.round(img.height * scale);
+
+            const c = document.createElement("canvas");
+            c.width = w;
+            c.height = h;
+            c.getContext("2d").drawImage(img, 0, 0, w, h);
+
+            const out = new Image();
+            out.src = c.toDataURL("image/png");
+            return out;
+        }
+
+        function loadFile(file) {
+            return new Promise(res => {
+                const img = new Image();
+                img.onload = () => res(resizeImage(img));
+                img.src = URL.createObjectURL(file);
+            });
+        }
+
+        function uuidv4() {
+            return crypto.randomUUID();
+        }
+
+        /* ---------- Tabs ---------- */
+        tabUpload.onclick = () => {
+            uploadTab.classList.remove("hidden");
+            cameraTab.classList.add("hidden");
+            tabUpload.classList.add("bg-blue-600", "text-white");
+            tabCamera.classList.remove("bg-blue-600", "text-white");
+        };
+
+        tabCamera.onclick = async () => {
+            uploadTab.classList.add("hidden");
+            cameraTab.classList.remove("hidden");
+            tabCamera.classList.add("bg-blue-600", "text-white");
+            tabUpload.classList.remove("bg-blue-600", "text-white");
+
+            if (!video.srcObject) {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+            }
+        };
+
+        /* ---------- Upload ---------- */
+        leftInput.onchange = async () => {
+            imgLeft = await loadFile(leftInput.files[0]);
+            leftPreview.src = imgLeft.src;
+            leftPreview.classList.remove("hidden");
+        };
+
+        rightInput.onchange = async () => {
+            imgRight = await loadFile(rightInput.files[0]);
+            rightPreview.src = imgRight.src;
+            rightPreview.classList.remove("hidden");
+        };
+
+        /* ---------- Camera Capture ---------- */
+        async function captureFrameFromVideo(video) {
+            const c = document.createElement("canvas");
+            c.width = video.videoWidth;
+            c.height = video.videoHeight;
+            c.getContext("2d").drawImage(video, 0, 0);
+
+            return new Promise(resolve => {
+                const img = new Image();
+                img.onload = () => resolve(resizeImage(img));
+                img.src = c.toDataURL("image/png");
+            });
+        }
+
+        captureBtn.onclick = async () => {
+            if (!video.videoWidth || !video.videoHeight) {
+                alert("Camera not ready yet.");
+                return;
+            }
+
+            const img = await captureFrameFromVideo(video);
+
+            if (captureCount === 0) {
+                imgLeft = img;
+                cap1.src = img.src;
+                cap1.classList.remove("hidden");
+
+                ghost.src = img.src;
+                ghost.classList.remove("hidden");
+            } else if (captureCount === 1) {
+                imgRight = img;
+                cap2.src = img.src;
+                cap2.classList.remove("hidden");
+
+                ghost.classList.add("hidden");
+            }
+
+            captureCount = Math.min(captureCount + 1, 2);
+        };
+
+        /* ---------- Stereo Build ---------- */
+        buildBtn.onclick = () => {
+            if (!imgLeft || !imgRight) {
+                alert("Need two images.");
+                return;
+            }
+
+            const h = Math.min(imgLeft.height, imgRight.height);
+            const lw = imgLeft.width * h / imgLeft.height;
+            const rw = imgRight.width * h / imgRight.height;
+
+            canvas.width = lw + rw;
+            canvas.height = h;
+
+            ctx.drawImage(imgLeft, 0, 0, lw, h);
+            ctx.drawImage(imgRight, lw, 0, rw, h);
+
+            const out = canvas.toDataURL("image/png");
+            resultImg.src = out;
+            resultImg.classList.remove("hidden");
+
+            downloadBtn.href = out;
+            downloadBtn.download = `stereo-${uuidv4()}.png`;
+            downloadBtn.classList.remove("bg-gray-400", "pointer-events-none");
+            downloadBtn.classList.add("bg-blue-600");
+        };
+    </script>
+</body>
+
+</html>
