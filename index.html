@@ -141,7 +141,7 @@
             tabUpload.classList.remove("bg-blue-600", "text-white");
 
             if (!video.srcObject) {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{exact: "environment"}}});
                 video.srcObject = stream;
             }
         };
