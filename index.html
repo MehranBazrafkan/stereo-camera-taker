@@ -35,6 +35,18 @@
         <!-- CAMERA TAB -->
         <div id="cameraTab" class="hidden space-y-3">
 
+            <!-- Camera selection -->
+            <div class="flex space-x-4 items-center mb-2">
+                <label class="flex items-center space-x-1">
+                    <input type="radio" name="cameraType" value="main" checked>
+                    <span>Main Camera</span>
+                </label>
+                <label class="flex items-center space-x-1">
+                    <input type="radio" name="cameraType" value="wide">
+                    <span>Wide Camera</span>
+                </label>
+            </div>
+
             <!-- Live camera with overlay -->
             <div class="relative w-full aspect-square bg-black rounded overflow-hidden">
                 <video id="video" autoplay playsinline class="absolute inset-0 w-full h-full object-cover"></video>
@@ -127,6 +139,34 @@
             return crypto.randomUUID();
         }
 
+        async function startCamera() {
+            const selected = document.querySelector('input[name="cameraType"]:checked').value;
+
+            // Get list of cameras
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(d => d.kind === "videoinput");
+
+            let constraints;
+            if (selected === "main") {
+                // Try to pick default back camera
+                constraints = { video: { facingMode: { exact: "environment" } } };
+            } else if (selected === "wide") {
+                // Try to pick second back camera if exists
+                const wideCam = videoDevices.find(d => d.label.toLowerCase().includes("wide") || d.label.toLowerCase().includes("ultra"));
+                constraints = { video: wideCam ? { deviceId: { exact: wideCam.deviceId } } : { facingMode: "environment" } };
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+            } catch (err) {
+                console.error("Failed to access camera:", err);
+                alert("Cannot access the selected camera. Falling back to default.");
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+            }
+        }
+
         /* ---------- Tabs ---------- */
         tabUpload.onclick = () => {
             uploadTab.classList.remove("hidden");
@@ -142,8 +182,7 @@
             tabUpload.classList.remove("bg-blue-600", "text-white");
 
             if (!video.srcObject) {
-                const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode:{exact: "environment"}}});
-                video.srcObject = stream;
+                await startCamera();
             }
         };
 
